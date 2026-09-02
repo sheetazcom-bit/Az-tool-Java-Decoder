@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v3.0
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v3.5
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Đổi tên biến (v3.0 Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch triệt để & Xóa sạch _0x (v3.5 Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnProcessText) {
       if (currentMode === 'deobfuscate') {
-        btnProcessText.textContent = subOption === 'clean_semantic' ? 'Làm Sạch & Chuẩn Hóa Code' : 'Thực thi Dịch & Giải Mã';
+        btnProcessText.textContent = subOption === 'clean_semantic' ? 'Làm Sạch Triệt Để Code' : 'Thực thi Dịch & Giải Mã';
       } else if (currentMode === 'obfuscate') {
         btnProcessText.textContent = 'Thực thi Mã Hóa Code';
       } else {
@@ -201,11 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<${slash || ''}${tag.trim()}${cleanRest}>`;
     });
 
-    // B. Remove backslashes before HTML tags
+    // B. Fix syntax glitches like (<'change', function(>)
+    res = res.replace(/<\s*['"]([a-zA-Z0-9\-_]+)['"]\s*,\s*function\s*\(\s*>?/g, "'$1', function(");
+
+    // C. Remove backslashes before HTML tags
     res = res.replace(/\\<(\/?[a-zA-Z0-9\-]+)/g, '<$1');
     res = res.replace(/\\>(\/?[a-zA-Z0-9\-]+)?/g, '>$1');
 
-    // C. Decode specific common hex escapes
+    // D. Decode specific common hex escapes
     res = res.replace(/\\x22/g, '"');
     res = res.replace(/\\x27/g, "\\'");
     res = res.replace(/\\x20/g, ' ');
@@ -216,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     res = res.replace(/\\x0d/gi, '\\r');
     res = res.replace(/\\x09/gi, '\\t');
 
-    // D. Decode general printable ASCII hex
+    // E. Decode general printable ASCII hex
     res = res.replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -225,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : match;
     });
 
-    // E. Decode unicode \uNNNN
+    // F. Decode unicode \uNNNN
     res = res.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -288,7 +291,52 @@ document.addEventListener('DOMContentLoaded', () => {
     return res;
   }
 
-  // 5. Semantic Variable Renaming & Cleanup Pro
+  // 5. Dynamic Sandbox String Array Resolver
+  function resolveStringArrays(code) {
+    let res = code;
+    try {
+      const arrayMatch = res.match(/function\s+([_0-9a-zA-Z]+)\s*\(\)\s*\{[\s\S]*?(?:const|var|let)\s+([_0-9a-zA-Z]+)\s*=\s*(\[[^\]]+\])[\s\S]*?return\s+[_0-9a-zA-Z]+;?\s*\}/);
+      if (arrayMatch) {
+        const arrayFnName = arrayMatch[1];
+        const rotatorMatch = res.match(new RegExp('\\(function\\s*\\([\\s\\S]*?\\}\\s*\\(' + arrayFnName + ',\\s*([\\d\\sx+\\-*\/]+)\\)\\);?'));
+        const accessorMatch = res.match(new RegExp('function\\s+([_0-9a-zA-Z]+)\\s*\\([\\w$,\\s]+\\)\\s*\\{[\\s\\S]*?' + arrayFnName + '[\\s\\S]*?\\}'));
+
+        if (rotatorMatch && accessorMatch) {
+          const accessorName = accessorMatch[1];
+          const sandboxScript = `${arrayMatch[0]}; ${rotatorMatch[0]}; ${accessorMatch[0]}; return ${accessorName};`;
+          const decodeFn = new Function(sandboxScript)();
+
+          const aliases = [accessorName];
+          const aliasMatches = res.matchAll(new RegExp('(?:const|var|let)\\s+([_0-9a-zA-Z]+)\\s*=\\s*' + accessorName, 'g'));
+          for (const am of aliasMatches) {
+            aliases.push(am[1]);
+          }
+
+          aliases.forEach(al => {
+            const callRegex = new RegExp('\\b' + al + '\\s*\\(\\s*(\\d+|0x[0-9a-fA-F]+)\\s*\\)', 'g');
+            res = res.replace(callRegex, (m, arg) => {
+              try {
+                const num = parseInt(arg, arg.startsWith('0x') ? 16 : 10);
+                const val = decodeFn(num);
+                return typeof val === 'string' ? JSON.stringify(val) : m;
+              } catch (e) {
+                return m;
+              }
+            });
+          });
+
+          res = res.replace(arrayMatch[0], '');
+          res = res.replace(rotatorMatch[0], '');
+          res = res.replace(accessorMatch[0], '');
+        }
+      }
+    } catch (e) {
+      console.warn('Sandbox array decode:', e);
+    }
+    return res;
+  }
+
+  // 6. Semantic Variable Renaming & Full Cleanup Pro
   function cleanAndRenameSemantic(code) {
     let res = code;
 
@@ -302,17 +350,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // C. Fold Arithmetic (Hex & Decimal)
     res = foldArithmeticExpressions(res);
 
-    // D. Simplify Member Calls
+    // D. Resolve dynamic string arrays
+    res = resolveStringArrays(res);
+
+    // E. Simplify Member Calls: obj['getElementById'] -> obj.getElementById
     res = simplifyMemberExpressions(res);
 
-    // E. Extract and rename common cryptic parameters in callbacks
+    // F. Strip useless rotator IIFE boilerplate
+    res = res.replace(/\(function\s*\([_0-9a-zA-Z,\s]+\)\s*\{\s*(?:const|var|let)[\s\S]*?while\s*\((?:true|false)\)[\s\S]*?\}\s*\}\s*\([_0-9a-zA-Z,\s\d+\-*\/]+\)\);?/g, '');
+
+    // G. Strip alias declarations (const getString = decodeString;)
+    res = res.replace(/(?:const|var|let)\s+(?:getString|getText|_0x[a-f0-9]+|varItem_[a-f0-9]+)\s*=\s*(?:decodeString|_0x[a-f0-9]+|varItem_[a-f0-9]+)(?:,\s*(?:getString|getText|_0x[a-f0-9]+|varItem_[a-f0-9]+)\s*=\s*(?:decodeString|_0x[a-f0-9]+|varItem_[a-f0-9]+))*;\s*/g, '');
+
+    // H. Semantic variable renames
+    res = res.replace(/new\s+Promise\(\s*\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*,\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, 'new Promise((resolve, reject)');
+    res = res.replace(/\.withSuccessHandler\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, '.withSuccessHandler(resolve)');
+    res = res.replace(/\.withFailureHandler\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, '.withFailureHandler(reject)');
+    res = res.replace(/catch\s*\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, 'catch (err)');
+    res = res.replace(/\bfunction\s*\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, 'function(event)');
     res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*=>/g, 'row =>');
     res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*\.map\(\s*row\s*=>/g, 'items.map(row =>');
 
-    // F. Rename common dictionary lookups
-    res = res.replace(/(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*,\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*;/g, 'const getString = decodeString, getText = decodeString;');
-    res = res.replace(/function\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*\(\)\s*\{\s*(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*\[/g, 'function getStringDictionary() {\n  const stringList = [');
-    res = res.replace(/(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*\[/g, 'const stringDictionary = [');
+    // I. Rename remaining _0x and varItem_ into clean sequential variables
+    const nameDict = {};
+    let count = 1;
+    res = res.replace(/\b(?:_0x|varItem_)[a-f0-9]{4,8}\b/g, (match) => {
+      if (!nameDict[match]) {
+        nameDict[match] = 'item_' + (count++);
+      }
+      return nameDict[match];
+    });
 
     return formatCode(res);
   }
@@ -327,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (unpacked) result = unpacked;
     result = decodeEscapeSequences(result);
     result = foldArithmeticExpressions(result);
+    result = resolveStringArrays(result);
     result = simplifyMemberExpressions(result);
     return formatCode(result);
   }
@@ -467,16 +535,18 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSample.addEventListener('click', () => {
       if (currentMode === 'deobfuscate') {
         codeSource.value =
-          "< script >\n" +
-          "const getString = decodeString, getText = decodeString;\n" +
-          "let currentPage = 0x5 * -0x2ed + -0x29f + 0x1141,\n" +
-          "    itemsPerPage = 0x336 * 0x8 + 0x1 * 0x80c + -0x21b2;\n" +
-          "const items = getData(0x11 * 0x21d + -0x127d * -0x1 + -0x3669 * 0x1)['map'](row => ({\n" +
-          "  'id': String(row[0x5a1 * -0x4 + -0x1df * 0x2 + -0x5 * -0x547] || ''),\n" +
-          "  'name': String(row[0xeed * 0x1 + 0x8d4 + -0x178c] || ''),\n" +
-          "  'price': Number(row[-0x122c + 0x54f * -0x1 + -0x2f6 * -0x8] || 0)\n" +
-          "}));\n" +
-          "< / script >";
+          "<script>\n" +
+          "async function initApp() {\n" +
+          "  try {\n" +
+          "    document.getElementById('loading-overlay').style.display = 'none';\n" +
+          "    const result = await new Promise((resolve, reject) => {\n" +
+          "      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).checkSession();\n" +
+          "    });\n" +
+          "  } catch (err) {\n" +
+          "    console.error(err);\n" +
+          "  }\n" +
+          "}\n" +
+          "</script>";
       } else if (currentMode === 'obfuscate') {
         codeSource.value =
           "function calculateTotal(items, taxRate) {\n" +
