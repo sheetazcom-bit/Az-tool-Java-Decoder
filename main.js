@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v2.7
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v3.0
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Đổi tên biến (Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Đổi tên biến (v3.0 Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return code;
   }
 
-  // --- Deobfuscation Core Algorithms ---
+  // --- Deobfuscation Core Pipeline ---
 
   // 1. Unpack Dean Edwards P.A.C.K.E.R
   function unpackPacker(code) {
@@ -192,15 +192,20 @@ document.addEventListener('DOMContentLoaded', () => {
   function decodeEscapeSequences(code) {
     let res = code;
 
-    // Fix < script > and < / script >
-    res = res.replace(/<\s*\/\s*([a-zA-Z0-9\-]+)\s*>/g, '</$1>');
-    res = res.replace(/<\s*([a-zA-Z0-9\-]+)\s*>/g, '<$1>');
+    // A. Fix broken HTML tags with spaces (< script >, < / script >, < style >, < div >, etc.)
+    res = res.replace(/<\s*(\/?)\s*([a-zA-Z0-9\-]+)([^>]*)>/g, (m, slash, tag, rest) => {
+      let cleanRest = rest ? rest.trim() : '';
+      if (cleanRest) {
+        cleanRest = ' ' + cleanRest.replace(/\s+/g, ' ');
+      }
+      return `<${slash || ''}${tag.trim()}${cleanRest}>`;
+    });
 
-    // Remove backslashes before HTML tags
+    // B. Remove backslashes before HTML tags
     res = res.replace(/\\<(\/?[a-zA-Z0-9\-]+)/g, '<$1');
     res = res.replace(/\\>(\/?[a-zA-Z0-9\-]+)?/g, '>$1');
 
-    // Decode specific common hex escapes
+    // C. Decode specific common hex escapes
     res = res.replace(/\\x22/g, '"');
     res = res.replace(/\\x27/g, "\\'");
     res = res.replace(/\\x20/g, ' ');
@@ -211,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     res = res.replace(/\\x0d/gi, '\\r');
     res = res.replace(/\\x09/gi, '\\t');
 
-    // Decode general printable ASCII hex
+    // D. Decode general printable ASCII hex
     res = res.replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -220,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : match;
     });
 
-    // Decode unicode \uNNNN
+    // E. Decode unicode \uNNNN
     res = res.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -232,14 +237,31 @@ document.addEventListener('DOMContentLoaded', () => {
     return res;
   }
 
-  // 3. Fold Arithmetic Expressions (e.g. 31 * 67 + -9403 * 1 + 7326 -> 0)
+  // 3. Fold Arithmetic Expressions (Hex & Decimal, multiline)
   function foldArithmeticExpressions(code) {
+    let res = code;
+
+    // A. Fix boolean with spaces
+    res = res.replace(/return\s*!\s*\[\]/g, 'return false');
+    res = res.replace(/return\s*!!\s*\[\]/g, 'return true');
+    res = res.replace(/(?:^|[^a-zA-Z0-9_$])!\s*\[\]/g, ' false');
+    res = res.replace(/(?:^|[^a-zA-Z0-9_$])!!\s*\[\]/g, ' true');
+
+    // B. Clean split lines in math expressions
+    res = res.replace(/([\+\-\*\/])\s*\n\s*/g, '$1 ');
+    res = res.replace(/(?:^|[,\[\(:\s=])-\s*\n\s*(0x[0-9a-fA-F]+|\d+)/g, '-$1');
+    res = res.replace(/([\+\-\*\/])\s*-\s*-\s*/g, '$1 +');
+    res = res.replace(/([\+\-\*\/])\s*-\s*(\d+|0x[0-9a-fA-F]+)/g, '$1 -$2');
+    res = res.replace(/([\+\-\*\/])\s*\+\s*(\d+|0x[0-9a-fA-F]+)/g, '$1 $2');
+    res = res.replace(/(?:^|[,\[\(:\s=])-\s+(\d+|0x[0-9a-fA-F]+)/g, '-$1');
+
+    // C. Evaluate math expressions repeatedly
     let prev = '';
-    let current = code;
     let iter = 0;
-    while (prev !== current && iter < 10) {
-      prev = current;
-      current = current.replace(/(?:(?<=[\[\(,\s=:\+\-\*\/])|^)(-?\d+(?:\s*[\+\-\*\/]\s*-?\d+)+)(?=[\]\),\s;:]|$)/g, (match, expr) => {
+    const mathRegex = /(?:(?<=[\[\(,\s=:\+\-\*\/])|^)((?:-?(?:0x[0-9a-fA-F]+|\d+)\s*[\+\-\*\/]\s*)+-?(?:0x[0-9a-fA-F]+|\d+))(?=[\]\),\s;:]|$)/g;
+    while (prev !== res && iter < 30) {
+      prev = res;
+      res = res.replace(mathRegex, (match, expr) => {
         try {
           const val = Function('"use strict"; return (' + expr + ')')();
           return typeof val === 'number' && !isNaN(val) ? val.toString() : match;
@@ -249,17 +271,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       iter++;
     }
-    return current;
+
+    // D. Convert remaining standalone hex literals (e.g. 0x3a3 -> 931)
+    res = res.replace(/\b0x([0-9a-fA-F]+)\b/g, (m, hex) => {
+      const val = parseInt(hex, 16);
+      return isNaN(val) ? m : val.toString();
+    });
+
+    return res;
   }
 
   // 4. Simplify Member Expressions & Literals
   function simplifyMemberExpressions(code) {
     let res = code;
-    // obj['prop'] -> obj.prop
     res = res.replace(/\[\s*['"]([a-zA-Z_$][a-zA-Z0-9_$]*)['"]\s*\]/g, '.$1');
-    // !![] -> true, ![] -> false
-    res = res.replace(/!!\[\]/g, 'true');
-    res = res.replace(/!\[\]/g, 'false');
     return res;
   }
 
@@ -271,28 +296,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const unpacked = unpackPacker(res);
     if (unpacked) res = unpacked;
 
-    // B. Decode Escapes
+    // B. Decode Escapes & Clean HTML tag spacing
     res = decodeEscapeSequences(res);
 
-    // C. Fold Arithmetic
+    // C. Fold Arithmetic (Hex & Decimal)
     res = foldArithmeticExpressions(res);
 
     // D. Simplify Member Calls
     res = simplifyMemberExpressions(res);
 
-    // E. Extract and rename common _0x parameters in callbacks
-    res = res.replace(/\b_0x[a-f0-9]{4,8}\s*=>/g, 'row =>');
-    res = res.replace(/\b_0x[a-f0-9]{4,8}\s*\.map\(\s*row\s*=>\s*\{/g, 'items.map(row => {');
+    // E. Extract and rename common cryptic parameters in callbacks
+    res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*=>/g, 'row =>');
+    res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*\.map\(\s*row\s*=>/g, 'items.map(row =>');
 
-        // Đổi tên các biến cấu trúc từ điển mã hóa sang tên gợi nhớ
-    res = res.replace(/const\s+_0x[a-f0-9]{4,8}\s*=\s*_0x[a-f0-9]{4,8}\s*,\s*_0x[a-f0-9]{4,8}\s*=\s*_0x[a-f0-9]{4,8}\s*;/g, 'const getString = decodeString, getText = decodeString;');
-    res = res.replace(/function\s+_0x[a-f0-9]{4,8}\s*\(\)\s*\{\s*const\s+_0x[a-f0-9]{4,8}\s*=\s*\[/g, 'function getStringArray() {\n  const stringList = [');
-    res = res.replace(/const\s+_0x[a-f0-9]{4,8}\s*=\s*\[/g, 'const stringDictionary = [');
-    res = res.replace(/\b_0x[a-f0-9]{4,8}\b/g, (match) => {
-      return 'varItem_' + match.substr(3, 4);
-    });
-    // Clean common GAS/JS lookup wrappers
-    res = res.replace(/const\s+_0x[a-f0-9]{4,8}\s*=\s*_0x[a-f0-9]{4,8}\s*;\s*/g, '');
+    // F. Rename common dictionary lookups
+    res = res.replace(/(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*,\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*;/g, 'const getString = decodeString, getText = decodeString;');
+    res = res.replace(/function\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*\(\)\s*\{\s*(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*\[/g, 'function getStringDictionary() {\n  const stringList = [');
+    res = res.replace(/(?:const|var|let)\s+(?:varItem_|_0x)[a-f0-9]{4,8}\s*=\s*\[/g, 'const stringDictionary = [');
 
     return formatCode(res);
   }
@@ -435,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnFormatInput) {
     btnFormatInput.addEventListener('click', () => {
       if (codeSource && codeSource.value.trim()) {
-        codeSource.value = formatCode(codeSource.value);
+        codeSource.value = formatCode(decodeEscapeSequences(codeSource.value));
         updateStats();
         showToast('Đã làm đẹp mã nguồn đầu vào!');
       }
@@ -447,13 +467,16 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSample.addEventListener('click', () => {
       if (currentMode === 'deobfuscate') {
         codeSource.value =
-          "<script>\n" +
-          "const items = getData(31 * 67 + -9403 * 1 + 7326)['map'](_0x4d5b98 => ({\n" +
-          "  'id': String(_0x4d5b98[31 * 67 + -9403 * 1 + 7326] || ''),\n" +
-          "  'name': String(_0x4d5b98[-21 * -121 + -6371 + 3831] || ''),\n" +
-          "  'price': Number(_0x4d5b98[-47 + -6883 + 1 * 6941] || 8853 + -4 * -777 + -11961)\n" +
+          "< script >\n" +
+          "const getString = decodeString, getText = decodeString;\n" +
+          "let currentPage = 0x5 * -0x2ed + -0x29f + 0x1141,\n" +
+          "    itemsPerPage = 0x336 * 0x8 + 0x1 * 0x80c + -0x21b2;\n" +
+          "const items = getData(0x11 * 0x21d + -0x127d * -0x1 + -0x3669 * 0x1)['map'](row => ({\n" +
+          "  'id': String(row[0x5a1 * -0x4 + -0x1df * 0x2 + -0x5 * -0x547] || ''),\n" +
+          "  'name': String(row[0xeed * 0x1 + 0x8d4 + -0x178c] || ''),\n" +
+          "  'price': Number(row[-0x122c + 0x54f * -0x1 + -0x2f6 * -0x8] || 0)\n" +
           "}));\n" +
-          "</script>";
+          "< / script >";
       } else if (currentMode === 'obfuscate') {
         codeSource.value =
           "function calculateTotal(items, taxRate) {\n" +
