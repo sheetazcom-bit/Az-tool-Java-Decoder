@@ -1,7 +1,7 @@
-﻿{
-  "name": "tool-dich-ma-hoa-sheetaz",
-  "version": "2.5.0",
-  "description": "Tool Dịch Mã Hóa & Deobfuscator Pro trên DirectAdmin Node.js",
+{
+  "name": "az-tool-java-decoder",
+  "version": "4.0.0",
+  "description": "SheetAZ Code Deobfuscator & Decoder Pro v4.0 - Universal JS/Java/GAS Deobfuscator & Encoder",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
@@ -11,5 +11,20 @@
     "cors": "^2.8.5",
     "js-beautify": "^1.14.9",
     "javascript-obfuscator": "^4.1.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sheetazcom-bit/Az-tool-Java-Decoder.git"
+  },
+  "keywords": [
+    "deobfuscator",
+    "decoder",
+    "obfuscator",
+    "javascript",
+    "google-apps-script",
+    "java",
+    "beautifier"
+  ],
+  "author": "SheetAZ",
+  "license": "MIT"
 }

@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v3.5
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.0
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch triệt để & Xóa sạch _0x (v3.5 Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch triệt để & Xóa sạch _0x (v4.0 Ultra Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
