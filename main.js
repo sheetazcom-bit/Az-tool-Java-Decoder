@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.1
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.2
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Sửa lỗi <script> (v4.1 Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Sửa lỗi <script> (v4.2 Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
@@ -173,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Beautify fallback:', e);
       }
     }
-    // ALWAYS run fixAllHtmlTags after js_beautify to ensure <script> never has spaces
     return fixAllHtmlTags(res);
   }
 
@@ -416,8 +415,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return formatCode(result);
   }
 
-  // --- Obfuscation Core ---
-  function runObfuscation(code, type) {
+  // --- Obfuscation Core (With HTML Tag Support) ---
+  function runObfuscationCore(jsCode, type) {
     if (window.JavaScriptObfuscator) {
       const options = {
         compact: type === 'obf_minify',
@@ -433,14 +432,32 @@ document.addEventListener('DOMContentLoaded', () => {
         stringArrayEncoding: type === 'obf_high' ? ['base64', 'rc4'] : ['base64'],
         stringArrayThreshold: 0.8
       };
-      try {
-        const obfResult = window.JavaScriptObfuscator.obfuscate(code, options);
-        return obfResult.getObfuscatedCode();
-      } catch (err) {
-        throw new Error('Lỗi mã hóa JavaScript: ' + err.message);
-      }
+      const obfResult = window.JavaScriptObfuscator.obfuscate(jsCode, options);
+      return obfResult.getObfuscatedCode();
     }
     throw new Error('Không tải được thư viện JavaScript-Obfuscator');
+  }
+
+  // Smart Obfuscator wrapper supporting <script> HTML tags
+  function runObfuscation(code, type) {
+    const raw = code.trim();
+    const hasScriptTags = /<\s*script(?:\s+[^>]*)?>[\s\S]*?<\s*\/\s*script\s*>/gi.test(raw);
+    const startsWithScript = /^<\s*script(?:\s+[^>]*)?>/gi.test(raw);
+
+    if (hasScriptTags) {
+      return raw.replace(/(<\s*script(?:\s+[^>]*)?>)([\s\S]*?)(<\s*\/\s*script\s*>)/gi, (m, openTag, js, closeTag) => {
+        if (!js.trim()) return m;
+        const obf = runObfuscationCore(js, type);
+        const cleanOpen = openTag.replace(/\s+/g, ' ');
+        return `${cleanOpen}\n${obf}\n</script>`;
+      });
+    } else if (startsWithScript) {
+      const cleanJS = raw.replace(/^<\s*script(?:\s+[^>]*)?>/gi, '').replace(/<\s*\/\s*script\s*>$/gi, '');
+      const obf = runObfuscationCore(cleanJS, type);
+      return `<script>\n${obf}\n</script>`;
+    } else {
+      return runObfuscationCore(raw, type);
+    }
   }
 
   // --- Converters ---
@@ -566,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
           "</script>";
       } else if (currentMode === 'obfuscate') {
         codeSource.value =
+          "<script>\n" +
           "function calculateTotal(items, taxRate) {\n" +
           "  let subtotal = 0;\n" +
           "  for (let i = 0; i < items.length; i++) {\n" +
@@ -574,7 +592,8 @@ document.addEventListener('DOMContentLoaded', () => {
           "  const tax = subtotal * taxRate;\n" +
           "  return { subtotal, tax, total: subtotal + tax };\n" +
           "}\n" +
-          "console.log(calculateTotal([{ price: 100, quantity: 2 }], 0.1));";
+          "console.log(calculateTotal([{ price: 100, quantity: 2 }], 0.1));\n" +
+          "</script>";
       } else {
         codeSource.value = 'Xin chào! Chào mừng bạn đến với hệ thống Tool dịch mã hóa SheetAZ.';
       }
