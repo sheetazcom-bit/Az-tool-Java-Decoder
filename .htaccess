@@ -1,11 +1,13 @@
+# DirectAdmin / LiteSpeed Node.js App Configuration
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
   # Force HTTPS
   RewriteCond %{HTTPS} off
   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </IfModule>
 
-# Disable cache for rapid updates
+# Anti-Cache Headers
 <IfModule mod_headers.c>
   <FilesMatch "\.(html|js|css)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"

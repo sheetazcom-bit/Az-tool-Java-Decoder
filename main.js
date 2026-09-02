@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.0
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.1
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch triệt để & Xóa sạch _0x (v4.0 Ultra Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Sửa lỗi <script> (v4.1 Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
@@ -140,18 +140,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 
+  // Post-Process: Fix any HTML tag spacing inserted by JS Beautifier
+  function fixAllHtmlTags(str) {
+    if (!str) return str;
+    let res = str;
+    res = res.replace(/<\s*script\s*>/gi, '<script>');
+    res = res.replace(/<\s*script\s+([^>]+)>/gi, (m, attrs) => '<script ' + attrs.trim() + '>');
+    res = res.replace(/<\s*\/\s*script\s*>/gi, '</script>');
+    res = res.replace(/<\s*style\s*>/gi, '<style>');
+    res = res.replace(/<\s*style\s+([^>]+)>/gi, (m, attrs) => '<style ' + attrs.trim() + '>');
+    res = res.replace(/<\s*\/\s*style\s*>/gi, '</style>');
+    res = res.replace(/<\s*(\/)?\s*(div|span|button|input|textarea|select|option|p|h[1-6]|table|tr|td|th|ul|li|i|b|strong|em|form|head|body|html)\s*>/gi, '<$1$2>');
+    res = res.replace(/<\s*(\/)?\s*(div|span|button|input|textarea|select|option|p|h[1-6]|table|tr|td|th|ul|li|i|b|strong|em|form|head|body|html)\s+([^>]+)>/gi, (m, slash, tag, attrs) => {
+      return '<' + (slash || '') + tag + ' ' + attrs.trim() + '>';
+    });
+    return res;
+  }
+
   // Beautifier helper
   function formatCode(code) {
+    let res = code;
     if (window.js_beautify) {
-      return window.js_beautify(code, {
-        indent_size: 2,
-        space_in_empty_paren: true,
-        preserve_newlines: true,
-        max_preserve_newlines: 2,
-        wrap_line_length: 120
-      });
+      try {
+        res = window.js_beautify(res, {
+          indent_size: 2,
+          space_in_empty_paren: true,
+          preserve_newlines: true,
+          max_preserve_newlines: 2,
+          wrap_line_length: 120
+        });
+      } catch (e) {
+        console.warn('Beautify fallback:', e);
+      }
     }
-    return code;
+    // ALWAYS run fixAllHtmlTags after js_beautify to ensure <script> never has spaces
+    return fixAllHtmlTags(res);
   }
 
   // --- Deobfuscation Core Pipeline ---
@@ -192,14 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function decodeEscapeSequences(code) {
     let res = code;
 
-    // A. Fix broken HTML tags with spaces (< script >, < / script >, < style >, < div >, etc.)
-    res = res.replace(/<\s*(\/?)\s*([a-zA-Z0-9\-]+)([^>]*)>/g, (m, slash, tag, rest) => {
-      let cleanRest = rest ? rest.trim() : '';
-      if (cleanRest) {
-        cleanRest = ' ' + cleanRest.replace(/\s+/g, ' ');
-      }
-      return `<${slash || ''}${tag.trim()}${cleanRest}>`;
-    });
+    // A. Fix broken HTML tags with spaces
+    res = fixAllHtmlTags(res);
 
     // B. Fix syntax glitches like (<'change', function(>)
     res = res.replace(/<\s*['"]([a-zA-Z0-9\-_]+)['"]\s*,\s*function\s*\(\s*>?/g, "'$1', function(");
