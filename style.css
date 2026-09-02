@@ -1,0 +1,54 @@
+﻿/* SheetAZ Tool Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #090d16;
+}
+
+code, pre, textarea {
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Input / Output textarea focus */
+textarea:focus {
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25);
+}
+
+/* Tab Active styling */
+.mode-tab.active {
+  background-color: #1e293b;
+  color: #2dd4bf;
+  border: 1px solid rgba(45, 212, 191, 0.3);
+}
+
+/* Tool options buttons */
+.opt-chip {
+  transition: all 0.2s ease;
+}
+.opt-chip.active {
+  background-color: rgba(20, 184, 166, 0.15);
+  border-color: rgba(20, 184, 166, 0.5);
+  color: #2dd4bf;
+}

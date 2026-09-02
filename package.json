@@ -1,0 +1,15 @@
+﻿{
+  "name": "tool-dich-ma-hoa-sheetaz",
+  "version": "2.5.0",
+  "description": "Tool Dịch Mã Hóa & Deobfuscator Pro trên DirectAdmin Node.js",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "js-beautify": "^1.14.9",
+    "javascript-obfuscator": "^4.1.1"
+  }
+}
