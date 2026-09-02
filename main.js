@@ -1,5 +1,5 @@
 /**
- * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.2
+ * SheetAZ - Code Deobfuscator & Decoder Pro Engine v4.5
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Option templates per mode
   const optionsMap = {
     deobfuscate: [
-      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Sửa lỗi <script> (v4.2 Pro)', active: true },
+      { id: 'clean_semantic', label: '✨ Làm sạch chuẩn & Sửa lỗi <script> (v4.5 Pro)', active: true },
       { id: 'clean_escapes_only', label: '🧹 Xóa lỗi \\x22, \\x0a, < script >' },
       { id: 'auto_deobfuscate', label: 'Tự động Deobfuscate cơ bản' },
       { id: 'unpack_eval', label: 'Unpack Packer / eval(p,a,c,k)' },
@@ -44,10 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
       { id: 'obf_minify', label: 'Nén gọn mã (Minify Only)' }
     ],
     convert: [
-      { id: 'base64_decode', label: 'Base64 Decode', active: true },
-      { id: 'base64_encode', label: 'Base64 Encode' },
-      { id: 'hex_decode', label: 'Hex Decode' },
-      { id: 'hex_encode', label: 'Hex Encode' },
+      { id: 'base64_decode', label: 'Base64 Decode (UTF-8)', active: true },
+      { id: 'base64_encode', label: 'Base64 Encode (UTF-8)' },
+      { id: 'hex_decode', label: 'Hex Decode (UTF-8)' },
+      { id: 'hex_encode', label: 'Hex Encode (UTF-8)' },
       { id: 'url_decode', label: 'URL Decode' },
       { id: 'url_encode', label: 'URL Encode' },
       { id: 'unicode_decode', label: 'Java/JS Unicode Decode' },
@@ -214,17 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function decodeEscapeSequences(code) {
     let res = code;
 
-    // A. Fix broken HTML tags with spaces
     res = fixAllHtmlTags(res);
-
-    // B. Fix syntax glitches like (<'change', function(>)
     res = res.replace(/<\s*['"]([a-zA-Z0-9\-_]+)['"]\s*,\s*function\s*\(\s*>?/g, "'$1', function(");
-
-    // C. Remove backslashes before HTML tags
     res = res.replace(/\\<(\/?[a-zA-Z0-9\-]+)/g, '<$1');
     res = res.replace(/\\>(\/?[a-zA-Z0-9\-]+)?/g, '>$1');
 
-    // D. Decode specific common hex escapes
     res = res.replace(/\\x22/g, '"');
     res = res.replace(/\\x27/g, "\\'");
     res = res.replace(/\\x20/g, ' ');
@@ -235,7 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
     res = res.replace(/\\x0d/gi, '\\r');
     res = res.replace(/\\x09/gi, '\\t');
 
-    // E. Decode general printable ASCII hex
     res = res.replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -244,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         : match;
     });
 
-    // F. Decode unicode \uNNNN
     res = res.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
       const codePoint = parseInt(hex, 16);
       const char = String.fromCharCode(codePoint);
@@ -260,13 +252,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function foldArithmeticExpressions(code) {
     let res = code;
 
-    // A. Fix boolean with spaces
     res = res.replace(/return\s*!\s*\[\]/g, 'return false');
     res = res.replace(/return\s*!!\s*\[\]/g, 'return true');
     res = res.replace(/(?:^|[^a-zA-Z0-9_$])!\s*\[\]/g, ' false');
     res = res.replace(/(?:^|[^a-zA-Z0-9_$])!!\s*\[\]/g, ' true');
 
-    // B. Clean split lines in math expressions
     res = res.replace(/([\+\-\*\/])\s*\n\s*/g, '$1 ');
     res = res.replace(/(?:^|[,\[\(:\s=])-\s*\n\s*(0x[0-9a-fA-F]+|\d+)/g, '-$1');
     res = res.replace(/([\+\-\*\/])\s*-\s*-\s*/g, '$1 +');
@@ -274,7 +264,6 @@ document.addEventListener('DOMContentLoaded', () => {
     res = res.replace(/([\+\-\*\/])\s*\+\s*(\d+|0x[0-9a-fA-F]+)/g, '$1 $2');
     res = res.replace(/(?:^|[,\[\(:\s=])-\s+(\d+|0x[0-9a-fA-F]+)/g, '-$1');
 
-    // C. Evaluate math expressions repeatedly
     let prev = '';
     let iter = 0;
     const mathRegex = /(?:(?<=[\[\(,\s=:\+\-\*\/])|^)((?:-?(?:0x[0-9a-fA-F]+|\d+)\s*[\+\-\*\/]\s*)+-?(?:0x[0-9a-fA-F]+|\d+))(?=[\]\),\s;:]|$)/g;
@@ -291,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
       iter++;
     }
 
-    // D. Convert remaining standalone hex literals (e.g. 0x3a3 -> 931)
     res = res.replace(/\b0x([0-9a-fA-F]+)\b/g, (m, hex) => {
       const val = parseInt(hex, 16);
       return isNaN(val) ? m : val.toString();
@@ -356,29 +344,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function cleanAndRenameSemantic(code) {
     let res = code;
 
-    // A. Unpack if packer
     const unpacked = unpackPacker(res);
     if (unpacked) res = unpacked;
 
-    // B. Decode Escapes & Clean HTML tag spacing
     res = decodeEscapeSequences(res);
-
-    // C. Fold Arithmetic (Hex & Decimal)
     res = foldArithmeticExpressions(res);
-
-    // D. Resolve dynamic string arrays
     res = resolveStringArrays(res);
-
-    // E. Simplify Member Calls: obj['getElementById'] -> obj.getElementById
     res = simplifyMemberExpressions(res);
 
-    // F. Strip useless rotator IIFE boilerplate
     res = res.replace(/\(function\s*\([_0-9a-zA-Z,\s]+\)\s*\{\s*(?:const|var|let)[\s\S]*?while\s*\((?:true|false)\)[\s\S]*?\}\s*\}\s*\([_0-9a-zA-Z,\s\d+\-*\/]+\)\);?/g, '');
-
-    // G. Strip alias declarations (const getString = decodeString;)
     res = res.replace(/(?:const|var|let)\s+(?:getString|getText|_0x[a-f0-9]+|varItem_[a-f0-9]+)\s*=\s*(?:decodeString|_0x[a-f0-9]+|varItem_[a-f0-9]+)(?:,\s*(?:getString|getText|_0x[a-f0-9]+|varItem_[a-f0-9]+)\s*=\s*(?:decodeString|_0x[a-f0-9]+|varItem_[a-f0-9]+))*;\s*/g, '');
 
-    // H. Semantic variable renames
     res = res.replace(/new\s+Promise\(\s*\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*,\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, 'new Promise((resolve, reject)');
     res = res.replace(/\.withSuccessHandler\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, '.withSuccessHandler(resolve)');
     res = res.replace(/\.withFailureHandler\(\s*(?:varItem_|_0x)[a-f0-9]{4,8}\s*\)/g, '.withFailureHandler(reject)');
@@ -387,7 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
     res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*=>/g, 'row =>');
     res = res.replace(/\b(?:varItem_|_0x)[a-f0-9]{4,8}\s*\.map\(\s*row\s*=>/g, 'items.map(row =>');
 
-    // I. Rename remaining _0x and varItem_ into clean sequential variables
     const nameDict = {};
     let count = 1;
     res = res.replace(/\b(?:_0x|varItem_)[a-f0-9]{4,8}\b/g, (match) => {
@@ -415,9 +390,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return formatCode(result);
   }
 
-  // --- Obfuscation Core (With HTML Tag Support) ---
+  // --- Obfuscation Core (With HTML Tag & Unicode Safety) ---
   function runObfuscationCore(jsCode, type) {
     if (window.JavaScriptObfuscator) {
+      // Pre-escape non-ASCII unicode to prevent atob Latin1 error in internal Obfuscator
+      const safeJsCode = jsCode.replace(/[^\x00-\x7F]/g, (char) => {
+        return '\\u' + ('0000' + char.charCodeAt(0).toString(16)).slice(-4);
+      });
+
       const options = {
         compact: type === 'obf_minify',
         controlFlowFlattening: type === 'obf_high',
@@ -430,15 +410,15 @@ document.addEventListener('DOMContentLoaded', () => {
         splitStrings: type === 'obf_high',
         stringArray: type !== 'obf_minify',
         stringArrayEncoding: type === 'obf_high' ? ['base64', 'rc4'] : ['base64'],
-        stringArrayThreshold: 0.8
+        stringArrayThreshold: 0.8,
+        unicodeEscapeSequence: true
       };
-      const obfResult = window.JavaScriptObfuscator.obfuscate(jsCode, options);
+      const obfResult = window.JavaScriptObfuscator.obfuscate(safeJsCode, options);
       return obfResult.getObfuscatedCode();
     }
     throw new Error('Không tải được thư viện JavaScript-Obfuscator');
   }
 
-  // Smart Obfuscator wrapper supporting <script> HTML tags
   function runObfuscation(code, type) {
     const raw = code.trim();
     const hasScriptTags = /<\s*script(?:\s+[^>]*)?>[\s\S]*?<\s*\/\s*script\s*>/gi.test(raw);
@@ -460,43 +440,96 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Converters ---
+  // --- UTF-8 Safe Converters (Base64, Hex, Unicode) ---
+  function utf8ToBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) {
+      bin += String.fromCharCode(bytes[i]);
+    }
+    return btoa(bin);
+  }
+
+  function base64ToUtf8(b64) {
+    const clean = b64.replace(/\s+/g, '');
+    if (!clean) return '';
+    if (!/^[A-Za-z0-9+/=]+$/.test(clean)) {
+      throw new Error('Dữ liệu không phải chuỗi Base64 hợp lệ (chứa ký tự lạ ngoài bảng mã Base64).');
+    }
+    try {
+      const bin = atob(clean);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      return new TextDecoder().decode(bytes);
+    } catch (e) {
+      throw new Error('Không thể giải mã Base64: ' + e.message);
+    }
+  }
+
+  function utf8ToHex(str) {
+    const bytes = new TextEncoder().encode(str);
+    let hex = '';
+    for (let i = 0; i < bytes.length; i++) {
+      hex += '\\x' + bytes[i].toString(16).padStart(2, '0');
+    }
+    return hex;
+  }
+
+  function hexToUtf8(hexStr) {
+    const clean = hexStr.replace(/\\x|0x|\s+|[,;]/gi, '');
+    if (!clean) return '';
+    if (!/^[0-9a-fA-F]+$/.test(clean)) {
+      throw new Error('Dữ liệu chứa ký tự không thuộc bảng mã Hex (0-9, a-f).');
+    }
+    if (clean.length % 2 !== 0) {
+      throw new Error('Độ dài chuỗi Hex không hợp lệ (phải là số chẵn).');
+    }
+    const bytes = new Uint8Array(clean.length / 2);
+    for (let i = 0; i < clean.length; i += 2) {
+      bytes[i / 2] = parseInt(clean.substr(i, 2), 16);
+    }
+    return new TextDecoder().decode(bytes);
+  }
+
+  function encodeToUnicodeEscapes(str) {
+    let uCode = '';
+    for (let i = 0; i < str.length; i++) {
+      const codePoint = str.charCodeAt(i);
+      if (codePoint > 127) {
+        uCode += '\\u' + codePoint.toString(16).padStart(4, '0');
+      } else {
+        uCode += str[i];
+      }
+    }
+    return uCode;
+  }
+
+  function decodeUnicodeEscapes(str) {
+    return str.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => {
+      return String.fromCharCode(parseInt(grp, 16));
+    });
+  }
+
   function runConversion(text, type) {
     switch (type) {
       case 'base64_decode':
-        return decodeURIComponent(escape(atob(text.trim())));
+        return base64ToUtf8(text);
       case 'base64_encode':
-        return btoa(unescape(encodeURIComponent(text)));
-      case 'hex_decode': {
-        const clean = text.replace(/[^0-9a-fA-F]/g, '');
-        let str = '';
-        for (let i = 0; i < clean.length; i += 2) {
-          str += String.fromCharCode(parseInt(clean.substr(i, 2), 16));
-        }
-        return str;
-      }
-      case 'hex_encode': {
-        let hex = '';
-        for (let i = 0; i < text.length; i++) {
-          hex += '\\x' + text.charCodeAt(i).toString(16).padStart(2, '0');
-        }
-        return hex;
-      }
+        return utf8ToBase64(text);
+      case 'hex_decode':
+        return hexToUtf8(text);
+      case 'hex_encode':
+        return utf8ToHex(text);
       case 'url_decode':
         return decodeURIComponent(text);
       case 'url_encode':
         return encodeURIComponent(text);
       case 'unicode_decode':
-        return text.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) => {
-          return String.fromCharCode(parseInt(grp, 16));
-        });
-      case 'unicode_encode': {
-        let uCode = '';
-        for (let i = 0; i < text.length; i++) {
-          uCode += '\\u' + text.charCodeAt(i).toString(16).padStart(4, '0');
-        }
-        return uCode;
-      }
+        return decodeUnicodeEscapes(text);
+      case 'unicode_encode':
+        return encodeToUnicodeEscapes(text);
       default:
         return text;
     }
@@ -595,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
           "console.log(calculateTotal([{ price: 100, quantity: 2 }], 0.1));\n" +
           "</script>";
       } else {
-        codeSource.value = 'Xin chào! Chào mừng bạn đến với hệ thống Tool dịch mã hóa SheetAZ.';
+        codeSource.value = 'Xin chào tiếng Việt có dấu: Chào mừng bạn đến với hệ thống Tool SheetAZ!';
       }
       updateStats();
       showToast('Đã tải mẫu thử nghiệm!');
